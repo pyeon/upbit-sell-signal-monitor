@@ -1,0 +1,85 @@
+name: Upbit Sell Signal Monitor v2.0
+
+on:
+  schedule:
+    # 한국시간 기준으로 30분마다 실행
+    # 09:00, 09:30, 10:00, 10:30, ... (KST)
+    - cron: '*/30 * * * *'  # UTC 기준 30분마다
+  
+  workflow_dispatch:  # 수동 실행 가능
+
+jobs:
+  monitor-sell-signals:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pyupbit pandas numpy requests ta openpyxl pytz
+    
+    - name: Create config file
+      run: |
+        cat > config.py << EOF
+        # -*- coding: utf-8 -*-
+        BOT_TOKEN = "${{ secrets.TELEGRAM_BOT_TOKEN }}"
+        CHAT_ID = "${{ secrets.TELEGRAM_CHAT_ID }}"
+        
+        # 타임프레임 설정
+        MINUTE_10_COUNT = 72
+        MINUTE_60_COUNT = 24
+        
+        # 가격 패턴 임계값
+        QUICK_DROP_LOOKBACK = 12
+        QUICK_DROP_THRESHOLD = 5.0
+        DROP_FROM_HIGH_12H_THRESHOLD = 8.0
+        SURGE_6H_THRESHOLD = 15.0
+        CHANGE_1H_THRESHOLD = -3.0
+        VOLATILITY_CHECK_CANDLES = 6
+        VOLATILITY_THRESHOLD = 3.0
+        
+        # 거래량 분석
+        VOLUME_DECLINE_DAYS = 3
+        DIVERGENCE_LOOKBACK_DAYS = 3
+        DIVERGENCE_PRICE_THRESHOLD = 3.0
+        DIVERGENCE_VOLUME_THRESHOLD = -10.0
+        
+        # 호가창
+        ORDERBOOK_THRESHOLD = 1.5
+        
+        # 기술적 지표
+        RSI_OVERBOUGHT = 70
+        RSI_HIGH = 60
+        STOCH_OVERBOUGHT = 80
+        STOCH_HIGH = 70
+        BB_HIGH_THRESHOLD = 80
+        
+        # 신호 단계
+        SELL_STAGE_REVIEW = 3
+        SELL_STAGE_PREPARE = 5
+        SELL_STAGE_IMMEDIATE = 7
+        
+        # 필터링
+        MIN_QUICK_DROP = 3.0
+        MIN_DROP_12H = 5.0
+        EOF
+    
+    - name: Run Sell Signal Monitor v2.0
+      run: |
+        python upbit_sell_signal_monitor_v2.py
+    
+    - name: Upload Excel Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: sell-signals-report-v2
+        path: upbit_sell_signals_v2.xlsx
+        retention-days: 30
